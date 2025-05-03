@@ -1,0 +1,32 @@
+steps:
+# 1. gcloud コマンドを使えるようにする (Cloud SDK イメージを使用)
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  args:
+  - 'gcloud'
+  - 'functions'
+  - 'deploy'
+  - 'get-supabase-users' # デプロイする関数名
+  - '--gen2' # 2nd gen を使う場合。1st genなら削除
+  - '--region=YOUR_REGION' # 例: 'asia-northeast1'
+  - '--runtime=python311' # 使用するPythonのバージョン
+  - '--source=.' # ソースコードの場所
+  - '--entry-point=get_supabase_users' # main.py 内のエントリーポイント関数名
+  - '--trigger-http' # HTTPトリガーを設定
+  - '--no-allow-unauthenticated' # 認証を必須にする
+  # Secret Manager のシークレットを環境変数として関数に渡す設定（キー用）
+  # コード内で直接 Secret Manager を叩くので、この行は必須ではないが、
+  # 将来的に環境変数経由でアクセスしたい場合のために残しても良い。
+  # ただし、キーとURLの両方を環境変数に渡すのは推奨されない。
+  # ここではコメントアウトするか、削除しても良い。
+  # - '--set-secrets=SUPABASE_KEY=supabase-service-role-key:latest'
+
+  # ↓↓↓ SUPABASE_URL を環境変数で渡していた行を削除 ↓↓↓
+  # - '--set-env-vars=SUPABASE_URL=YOUR_SUPABASE_URL'
+
+  # 関数の実行に使用するサービスアカウント（Secret Managerへのアクセス権限を持つもの）
+  - '--service-account=YOUR_RUNTIME_SERVICE_ACCOUNT' # 例: '<プロジェクトID>@appspot.gserviceaccount.com'
+  # ビルドのタイムアウト
+  timeout: '1200s'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
