@@ -7,7 +7,7 @@ steps:
   - 'deploy'
   - 'get-supabase-users' # デプロイする関数名
   - '--gen2' # 2nd gen を使う場合。1st genなら削除
-  - '--region=asia-us-central1' # 例: 'asia-northeast1'
+  - '--region=us-central1' # 例: 'asia-northeast1'
   - '--runtime=python311' # 使用するPythonのバージョン
   - '--source=.' # ソースコードの場所
   - '--entry-point=get_supabase_users' # main.py 内のエントリーポイント関数名
