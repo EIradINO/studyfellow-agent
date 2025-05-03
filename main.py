@@ -31,7 +31,7 @@ def get_secret(secret_id):
 
 @functions_framework.http
 def get_supabase_users(request: flask.Request):
-    """Supabaseからユーザーリストを取得しログに出力する"""
+    """Supabaseからユーザーリストを取得しログに出力するv1.1"""
     print("Function triggered: get_supabase_users")
     try:
         # 1. Supabase URL と Service Role Key を安全に取得
