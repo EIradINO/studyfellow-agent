@@ -6,7 +6,7 @@ from supabase import create_client, Client
 import traceback # エラー出力用にインポート
 
 # --- 設定 ---
-PROJECT_ID = os.environ.get("GCP_PROJECT") # Cloud Functionsが自動で設定
+PROJECT_ID = "studyfellow" # Cloud Functionsが自動で設定
 SECRET_KEY_ID = "supabase-service-role-key" # Service Role Key のシークレット名
 SECRET_URL_ID = "supabase-url"             # Supabase URL のシークレット名
 # -------------
