@@ -13,6 +13,7 @@ steps:
   - '--trigger-http'
   - '--no-allow-unauthenticated'
   - '--service-account=studyfellow@appspot.gserviceaccount.com'
+  - '--memory=512MB'
   timeout: '1200s'
 
 options:
