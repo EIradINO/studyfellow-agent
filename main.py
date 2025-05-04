@@ -4,13 +4,14 @@ import os
 from google.cloud import secretmanager
 from supabase import create_client, Client
 import traceback
+import google.generativeai as genai # 再度インポート
 from datetime import date, timedelta, datetime # datetime関連をインポート
 
 PROJECT_ID = "studyfellow"
 # 自動検出じゃ無いけどセキュリティ的に大丈夫なのか
 SECRET_KEY_ID = "supabase-service-role-key" 
 SECRET_URL_ID = "supabase-url"
-# GEMINI_API_KEY_SECRET_ID = "gemini-api-key" # 不要
+GEMINI_API_KEY_SECRET_ID = "gemini-api-key" # 再度有効化
 
 secret_client = secretmanager.SecretManagerServiceClient()
 
@@ -36,8 +37,8 @@ def get_secret(secret_id):
 
 @functions_framework.http
 def get_supabase_users(request: flask.Request):
-    """(変更) Supabase messagesテーブルから今日のレコード数をログ出力""" # Docstring 変更
-    print("Function triggered: get_supabase_users (Querying today's messages)") # ログ変更
+    """(変更) 今日のSupabaseメッセージを取得し、Geminiで要約してログ出力""" # Docstring 変更
+    print("Function triggered: get_supabase_users (Summarize today's messages with Gemini)") # ログ変更
     try:
         # 1. Supabase クライアント初期化
         supabase_url = get_secret(SECRET_URL_ID)
@@ -45,30 +46,69 @@ def get_supabase_users(request: flask.Request):
         supabase: Client = create_client(supabase_url, supabase_key)
         print("Supabase client initialized.")
 
-        # 2. 今日の日付範囲を取得 (YYYY-MM-DD形式)
+        # 2. 今日の日付範囲を取得
         today = date.today()
         tomorrow = today + timedelta(days=1)
         today_start_str = today.isoformat()
         tomorrow_start_str = tomorrow.isoformat()
         print(f"Querying messages created between {today_start_str} (inclusive) and {tomorrow_start_str} (exclusive)")
 
-        # 3. Supabase で今日のメッセージ件数を取得
+        # 3. Supabase で今日のメッセージ内容を取得
+        messages_content = []
         try:
             response = supabase.table('messages') \
-                             .select('id', count='exact') \
+                             .select('content') \
                              .gte('created_at', today_start_str) \
                              .lt('created_at', tomorrow_start_str) \
+                             .order('created_at') \
                              .execute()
 
-            message_count = response.count
-            print(f"Found {message_count} messages created today ({today_start_str}).")
-
-            return f"Successfully queried messages. Count for today ({today_start_str}): {message_count}", 200
+            if response.data:
+                messages_content = [msg['content'] for msg in response.data if msg.get('content')]
+                print(f"Retrieved {len(messages_content)} messages from today.")
+            else:
+                print("No messages found for today.")
+                return f"No messages found for today ({today_start_str}).", 200
 
         except Exception as db_err:
             print(f"Error querying Supabase 'messages': {db_err}")
-            traceback.print_exc() # エラー詳細を出力
-            raise # DBエラーを再発生させる
+            traceback.print_exc()
+            raise
+
+        # 4. メッセージ内容を結合
+        combined_text = "\n\n---\n\n".join(messages_content)
+
+        if not combined_text.strip():
+             print("Combined message content is empty.")
+             return "No content found in today's messages.", 200
+
+        # 5. Gemini API で要約
+        try:
+            print("Configuring Gemini API...")
+            api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
+            genai.configure(api_key=api_key)
+
+            print("Generating summary with Gemini...")
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = f"以下の複数のメッセージ内容を理解し、全体を簡潔に要約してください:\n\n---\n{combined_text}\n---\n\n要約:"
+
+            gemini_response = model.generate_content(prompt, stream=False)
+            gemini_response.resolve() # エラーチェック
+
+            if hasattr(gemini_response, 'text'):
+                summary = gemini_response.text
+                print("--- Gemini Summary ---")
+                print(summary)
+                print("----------------------")
+                return f"Successfully summarized {len(messages_content)} messages from today. Summary logged.", 200
+            else:
+                print(f"Failed to generate summary. Feedback: {gemini_response.prompt_feedback}")
+                return f"要約を生成できませんでした。理由: {gemini_response.prompt_feedback}", 500
+
+        except Exception as gemini_err:
+            print(f"Error during Gemini summarization: {gemini_err}")
+            traceback.print_exc()
+            return "Error during summarization process.", 500
 
     except Exception as e:
         print(f"An error occurred in the function: {e}")
