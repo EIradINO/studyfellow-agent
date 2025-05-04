@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pytz # 日本時間のため
 from google.cloud import secretmanager
 from supabase import create_client, Client
-import google.generativeai as genai # Gemini API用
+# import google.generativeai as genai # Gemini API用  <--- これをコメントアウト
 
 # --- 設定 ---
 PROJECT_ID = "studyfellow" # GCPプロジェクトID (環境変数から取るのが望ましいが、一旦ハードコード)
@@ -57,7 +57,7 @@ def configure_gemini():
     if not genai_configured:
         try:
             api_key = get_secret(GEMINI_API_KEY_ID)
-            genai.configure(api_key=api_key)
+            # genai.configure(api_key=api_key)
             genai_configured = True
             print("Gemini API configured successfully.")
         except Exception as e:
