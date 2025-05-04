@@ -21,7 +21,7 @@ supabase_client = None # 関数内で初期化
 genai_configured = False # Gemini API設定済みフラグ
 
 def get_secret(secret_id):
-    """Secret Manager からシークレットを取得"""
+    """Secret Manager からシークレットを取得v1.1"""
     # GCP_PROJECT 環境変数が設定されていない問題への対応
     project_id_to_use = os.environ.get("GCP_PROJECT", PROJECT_ID) # 環境変数を優先、なければハードコード値
     if not project_id_to_use:
