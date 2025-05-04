@@ -18,7 +18,7 @@ secret_client = secretmanager.SecretManagerServiceClient()
 def get_secret(secret_id):
     """Secret Manager から指定されたシークレットの最新バージョンを取得する"""
     # 環境変数 GCP_PROJECT を優先し、なければハードコードされた PROJECT_ID を使う
-    current_project_id = os.environ.get("GCP_PROJECT")
+    current_project_id = os.environ.get("GCP_PROJECT", PROJECT_ID)
     if not current_project_id:
          # 環境変数もハードコード値もなければエラー
          print("ERROR: GCP_PROJECT cannot be determined.")
