@@ -3,7 +3,7 @@ import flask
 import os
 import traceback
 from datetime import datetime, timedelta, timezone
-import pytz # 日本時間のため
+# import pytz # 日本時間のため
 from google.cloud import secretmanager
 from supabase import create_client, Client
 # import google.generativeai as genai # Gemini API用  <--- これをコメントアウト
