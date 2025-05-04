@@ -71,96 +71,103 @@ def summarize_recent_messages(request: flask.Request):
     """
     print("Function triggered: summarize_recent_messages")
 
-    try:
-        # Supabase と Gemini を初期化 (未初期化の場合)
-        initialize_supabase()
-        configure_gemini()
+    # --- ↓↓↓ 一時的にコメントアウト ↓↓↓ ---
+    # try:
+    #     # Supabase と Gemini を初期化 (未初期化の場合)
+    #     initialize_supabase()
+    #     configure_gemini()
+    #
+    #     # 1. 時間範囲の計算 (JSTで過去24時間)
+    #     jst = pytz.timezone('Asia/Tokyo')
+    #     now_jst = datetime.now(jst)
+    #     start_time_jst = now_jst - timedelta(hours=24)
+    #     # Supabaseはタイムゾーン付きのUTC (timestamptz) を期待するためUTCに変換
+    #     start_time_utc = start_time_jst.astimezone(timezone.utc).isoformat()
+    #     print(f"Fetching messages created after: {start_time_utc} (UTC)")
+    #
+    #     # 2. Supabaseからmessagesテーブルのデータを取得
+    #     try:
+    #         # created_at が start_time_utc より大きいものを取得
+    #         # TODO: "messages" テーブルと "created_at", "room_id", "content"(要約対象) カラムが存在する前提
+    #         response = supabase_client.table('messages')\
+    #                                   .select("id, room_id, created_at, content")\
+    #                                   .gte('created_at', start_time_utc)\
+    #                                   .order('created_at', desc=False)\
+    #                                   .execute()
+    #         messages = response.data
+    #         print(f"Successfully retrieved {len(messages)} messages from Supabase.")
+    #
+    #     except Exception as db_err:
+    #         print(f"Error querying Supabase 'messages': {db_err}")
+    #         traceback.print_exc()
+    #         return "Error querying database.", 500
+    #
+    #     if not messages:
+    #         print("No recent messages found in the last 24 hours.")
+    #         return "No recent messages to summarize.", 200
+    #
+    #     # 3. room_id ごとにメッセージをグループ化
+    #     messages_by_room = {}
+    #     for msg in messages:
+    #         room_id = msg.get('room_id')
+    #         if room_id:
+    #             if room_id not in messages_by_room:
+    #                 messages_by_room[room_id] = []
+    #             # 要約用にシンプルなテキスト形式にする (例: "YYYY-MM-DD HH:MM:SS: content")
+    #             # created_at を JST に変換して表示
+    #             created_at_utc = datetime.fromisoformat(msg['created_at'].replace('Z', '+00:00'))
+    #             created_at_jst = created_at_utc.astimezone(jst)
+    #             formatted_time = created_at_jst.strftime('%Y-%m-%d %H:%M:%S')
+    #             messages_by_room[room_id].append(f"{formatted_time}: {msg.get('content', '')}")
+    #
+    #     print(f"Messages grouped into {len(messages_by_room)} rooms.")
+    #
+    #     # 4. 各 room_id の会話を Gemini で要約
+    #     summaries = {}
+    #     model = genai.GenerativeModel('gemini-1.5-flash') # モデル指定
+    #
+    #     for room_id, conversation_lines in messages_by_room.items():
+    #         print(f"Summarizing conversation for room_id: {room_id} ({len(conversation_lines)} messages)")
+    #         conversation_text = "\n".join(conversation_lines)
+    #
+    #         # プロンプトを作成
+    #         prompt = f"""以下の会話の要点を簡潔にまとめてください。
+    #
+    # 会話履歴:
+    # ---
+    # {conversation_text}
+    # ---
+    #
+    # 要約:"""
+    #
+    #         try:
+    #             # Gemini API 呼び出し
+    #             response = model.generate_content(prompt)
+    #             summary = response.text
+    #             summaries[room_id] = summary
+    #             # ログに要約を出力
+    #             print(f"--- Summary for room_id: {room_id} ---")
+    #             print(summary)
+    #             print("--------------------------------------")
+    #
+    #         except Exception as gen_err:
+    #             print(f"Error generating summary for room_id {room_id}: {gen_err}")
+    #             summaries[room_id] = "Error during summarization."
+    #             traceback.print_exc() # エラー詳細もログに出力
+    #
+    #     # 5. 完了ログ
+    #     print("Finished summarizing conversations.")
+    #     # 必要であれば、要約結果をまとめて返すことも可能
+    #     # return flask.jsonify(summaries), 200
+    #     return f"Successfully summarized conversations for {len(summaries)} rooms.", 200
+    #
+    # except Exception as e:
+    #     print(f"An unexpected error occurred in the function: {e}")
+    #     traceback.print_exc()
+    #     return "An internal server error occurred.", 500
+    # --- ↑↑↑ ---------------------- ↑↑↑ ---
 
-        # 1. 時間範囲の計算 (JSTで過去24時間)
-        jst = pytz.timezone('Asia/Tokyo')
-        now_jst = datetime.now(jst)
-        start_time_jst = now_jst - timedelta(hours=24)
-        # Supabaseはタイムゾーン付きのUTC (timestamptz) を期待するためUTCに変換
-        start_time_utc = start_time_jst.astimezone(timezone.utc).isoformat()
-        print(f"Fetching messages created after: {start_time_utc} (UTC)")
-
-        # 2. Supabaseからmessagesテーブルのデータを取得
-        try:
-            # created_at が start_time_utc より大きいものを取得
-            # TODO: "messages" テーブルと "created_at", "room_id", "content"(要約対象) カラムが存在する前提
-            response = supabase_client.table('messages')\
-                                      .select("id, room_id, created_at, content")\
-                                      .gte('created_at', start_time_utc)\
-                                      .order('created_at', desc=False)\
-                                      .execute()
-            messages = response.data
-            print(f"Successfully retrieved {len(messages)} messages from Supabase.")
-
-        except Exception as db_err:
-            print(f"Error querying Supabase 'messages': {db_err}")
-            traceback.print_exc()
-            return "Error querying database.", 500
-
-        if not messages:
-            print("No recent messages found in the last 24 hours.")
-            return "No recent messages to summarize.", 200
-
-        # 3. room_id ごとにメッセージをグループ化
-        messages_by_room = {}
-        for msg in messages:
-            room_id = msg.get('room_id')
-            if room_id:
-                if room_id not in messages_by_room:
-                    messages_by_room[room_id] = []
-                # 要約用にシンプルなテキスト形式にする (例: "YYYY-MM-DD HH:MM:SS: content")
-                # created_at を JST に変換して表示
-                created_at_utc = datetime.fromisoformat(msg['created_at'].replace('Z', '+00:00'))
-                created_at_jst = created_at_utc.astimezone(jst)
-                formatted_time = created_at_jst.strftime('%Y-%m-%d %H:%M:%S')
-                messages_by_room[room_id].append(f"{formatted_time}: {msg.get('content', '')}")
-
-        print(f"Messages grouped into {len(messages_by_room)} rooms.")
-
-        # 4. 各 room_id の会話を Gemini で要約
-        summaries = {}
-        model = genai.GenerativeModel('gemini-1.5-flash') # モデル指定
-
-        for room_id, conversation_lines in messages_by_room.items():
-            print(f"Summarizing conversation for room_id: {room_id} ({len(conversation_lines)} messages)")
-            conversation_text = "\n".join(conversation_lines)
-
-            # プロンプトを作成
-            prompt = f"""以下の会話の要点を簡潔にまとめてください。
-
-会話履歴:
----
-{conversation_text}
----
-
-要約:"""
-
-            try:
-                # Gemini API 呼び出し
-                response = model.generate_content(prompt)
-                summary = response.text
-                summaries[room_id] = summary
-                # ログに要約を出力
-                print(f"--- Summary for room_id: {room_id} ---")
-                print(summary)
-                print("--------------------------------------")
-
-            except Exception as gen_err:
-                print(f"Error generating summary for room_id {room_id}: {gen_err}")
-                summaries[room_id] = "Error during summarization."
-                traceback.print_exc() # エラー詳細もログに出力
-
-        # 5. 完了ログ
-        print("Finished summarizing conversations.")
-        # 必要であれば、要約結果をまとめて返すことも可能
-        # return flask.jsonify(summaries), 200
-        return f"Successfully summarized conversations for {len(summaries)} rooms.", 200
-
-    except Exception as e:
-        print(f"An unexpected error occurred in the function: {e}")
-        traceback.print_exc()
-        return "An internal server error occurred.", 500
+    # --- ↓↓↓ 単純なレスポンスを返すように変更 ↓↓↓ ---
+    print("Skipping initialization and processing for debugging.")
+    return "Function container started successfully (debug mode).", 200
+    # --- ↑↑↑ --------------------------------- ↑↑↑ ---
