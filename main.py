@@ -2,7 +2,7 @@ import functions_framework
 import flask
 import os
 import traceback
-from datetime import datetime, timedelta, timezone
+# from datetime import datetime, timedelta, timezone
 # import pytz # 日本時間のため
 from google.cloud import secretmanager
 from supabase import create_client, Client
@@ -12,7 +12,7 @@ from supabase import create_client, Client
 PROJECT_ID = "studyfellow" # GCPプロジェクトID (環境変数から取るのが望ましいが、一旦ハードコード)
 SUPABASE_KEY_ID = "supabase-service-role-key" # Supabase Service Role Key のシークレット名
 SUPABASE_URL_ID = "supabase-url"             # Supabase URL のシークレット名
-GEMINI_API_KEY_ID = "gemini-api-key"         # Gemini API Key のシークレット名
+# GEMINI_API_KEY_ID = "gemini-api-key"         # Gemini API Key のシークレット名
 # -------------
 
 # クライアントの初期化 (グローバルスコープで一度だけ)
@@ -56,7 +56,7 @@ def configure_gemini():
     global genai_configured
     if not genai_configured:
         try:
-            api_key = get_secret(GEMINI_API_KEY_ID)
+            # api_key = get_secret(GEMINI_API_KEY_ID)
             # genai.configure(api_key=api_key)
             genai_configured = True
             print("Gemini API configured successfully.")
