@@ -4,13 +4,13 @@ import os
 from google.cloud import secretmanager
 from supabase import create_client, Client
 import traceback
-import google.generativeai as genai # Geminiライブラリをインポート
+from datetime import date, timedelta, datetime # datetime関連をインポート
 
 PROJECT_ID = "studyfellow"
 # 自動検出じゃ無いけどセキュリティ的に大丈夫なのか
 SECRET_KEY_ID = "supabase-service-role-key" 
 SECRET_URL_ID = "supabase-url"
-GEMINI_API_KEY_SECRET_ID = "gemini-api-key" # Gemini API キーのシークレット名
+# GEMINI_API_KEY_SECRET_ID = "gemini-api-key" # 不要
 
 secret_client = secretmanager.SecretManagerServiceClient()
 
@@ -36,50 +36,41 @@ def get_secret(secret_id):
 
 @functions_framework.http
 def get_supabase_users(request: flask.Request):
-    """(変更) 固定テキストをログ出力し、リクエストテーマで詩を生成して返す""" # Docstring 変更
-    print("Function triggered: get_supabase_users (Combined Gemini Ops)") # ログメッセージ変更
+    """(変更) Supabase messagesテーブルから今日のレコード数をログ出力""" # Docstring 変更
+    print("Function triggered: get_supabase_users (Querying today's messages)") # ログ変更
     try:
-        # 1. Gemini API キーを安全に取得・設定
-        api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
-        genai.configure(api_key=api_key)
-        print("Gemini API configured.")
+        # 1. Supabase クライアント初期化
+        supabase_url = get_secret(SECRET_URL_ID)
+        supabase_key = get_secret(SECRET_KEY_ID)
+        supabase: Client = create_client(supabase_url, supabase_key)
+        print("Supabase client initialized.")
 
-        # 2. === 固定プロンプトでテキスト生成 & ログ出力 ===
+        # 2. 今日の日付範囲を取得 (YYYY-MM-DD形式)
+        today = date.today()
+        tomorrow = today + timedelta(days=1)
+        today_start_str = today.isoformat()
+        tomorrow_start_str = tomorrow.isoformat()
+        print(f"Querying messages created between {today_start_str} (inclusive) and {tomorrow_start_str} (exclusive)")
+
+        # 3. Supabase で今日のメッセージ件数を取得
         try:
-            fixed_prompt = "Google Cloud Functionsの主な役割について、2-3文で簡単に説明してください。"
-            print(f"Generating text for logging with fixed prompt: {fixed_prompt}")
-            log_model = genai.GenerativeModel('gemini-1.5-flash') # ログ用
-            log_response = log_model.generate_content(fixed_prompt, stream=False)
-            log_response.resolve()
-            if hasattr(log_response, 'text'):
-                print("--- Generated Text for Log ---")
-                print(log_response.text)
-                print("------------------------------")
-            else:
-                print(f"Failed to generate text for log. Feedback: {log_response.prompt_feedback}")
-        except Exception as log_err:
-            print(f"Error during text generation for log: {log_err}")
-            # ログ生成エラーは関数全体を停止させない
+            response = supabase.table('messages') \
+                             .select('id', count='exact') \
+                             .gte('created_at', today_start_str) \
+                             .lt('created_at', tomorrow_start_str) \
+                             .execute()
 
-        # 3. === リクエストテーマで詩を生成 & レスポンスとして返す ===
-        theme = request.args.get("theme", "Google Cloud と AI") # デフォルトテーマ
-        print(f"Generating poem for response with theme: {theme}")
+            message_count = response.count
+            print(f"Found {message_count} messages created today ({today_start_str}).")
 
-        poem_model = genai.GenerativeModel('gemini-1.5-flash') # 詩生成用
-        poem_prompt = f"「{theme}」についての短い詩を作成してください。"
-        poem_response = poem_model.generate_content(poem_prompt, stream=False)
-        poem_response.resolve()
+            return f"Successfully queried messages. Count for today ({today_start_str}): {message_count}", 200
 
-        # 4. 詩の結果をHTTPレスポンスとして返す
-        if hasattr(poem_response, 'text'):
-            generated_poem = poem_response.text
-            print("Poem generated successfully for response.")
-            return flask.Response(generated_poem, mimetype='text/plain; charset=utf-8')
-        else:
-            print(f"Failed to generate poem for response. Feedback: {poem_response.prompt_feedback}")
-            return flask.Response(f"詩を生成できませんでした。理由: {poem_response.prompt_feedback}", status=500, mimetype='text/plain; charset=utf-8')
+        except Exception as db_err:
+            print(f"Error querying Supabase 'messages': {db_err}")
+            traceback.print_exc() # エラー詳細を出力
+            raise # DBエラーを再発生させる
 
     except Exception as e:
         print(f"An error occurred in the function: {e}")
         traceback.print_exc()
-        return flask.Response("処理中にエラーが発生しました。", status=500, mimetype='text/plain; charset=utf-8')
+        return "An internal error occurred.", 500
