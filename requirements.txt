@@ -2,5 +2,5 @@ functions-framework>=3.0.0
 google-cloud-secret-manager>=2.0.0
 supabase>=1.0.0,<2.0.0
 flask>=2.0.0
-google-generativeai>=0.5.0
-pytz>=2023.3
+# google-generativeai>=0.5.0
+# pytz>=2023.3
