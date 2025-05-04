@@ -5,7 +5,7 @@ from google.cloud import secretmanager
 from supabase import create_client, Client
 import traceback
 import google.generativeai as genai # 再度インポート
-from datetime import date, timedelta, datetime # datetime関連をインポート
+from datetime import date, timedelta, datetime, timezone # timezone を追加
 
 PROJECT_ID = "studyfellow"
 # 自動検出じゃ無いけどセキュリティ的に大丈夫なのか
@@ -37,8 +37,8 @@ def get_secret(secret_id):
 
 @functions_framework.http
 def get_supabase_users(request: flask.Request):
-    """(変更) 今日のSupabaseメッセージを取得し、Geminiで要約してログ出力""" # Docstring 変更
-    print("Function triggered: get_supabase_users (Summarize today's messages with Gemini)") # ログ変更
+    """(変更) 過去24時間のSupabaseメッセージ(JST基準)を取得し、Geminiで要約してログ出力""" # Docstring 変更
+    print("Function triggered: get_supabase_users (Summarize last 24h messages in JST with Gemini)") # ログ変更
     try:
         # 1. Supabase クライアント初期化
         supabase_url = get_secret(SECRET_URL_ID)
@@ -46,29 +46,30 @@ def get_supabase_users(request: flask.Request):
         supabase: Client = create_client(supabase_url, supabase_key)
         print("Supabase client initialized.")
 
-        # 2. 今日の日付範囲を取得
-        today = date.today()
-        tomorrow = today + timedelta(days=1)
-        today_start_str = today.isoformat()
-        tomorrow_start_str = tomorrow.isoformat()
-        print(f"Querying messages created between {today_start_str} (inclusive) and {tomorrow_start_str} (exclusive)")
+        # 2. 現在時刻から過去24時間の範囲を取得 (JST)
+        jst = timezone(timedelta(hours=9), 'JST') # 日本標準時 (UTC+9)
+        now_jst = datetime.now(jst)
+        twenty_four_hours_ago_jst = now_jst - timedelta(hours=24)
+        start_time_str = twenty_four_hours_ago_jst.isoformat()
+        end_time_str = now_jst.isoformat()
+        print(f"Querying messages created between {start_time_str} (JST, inclusive) and {end_time_str} (JST, inclusive)")
 
-        # 3. Supabase で今日のメッセージ内容を取得
+        # 3. Supabase で過去24時間(JST基準)のメッセージ内容を取得
         messages_content = []
         try:
             response = supabase.table('messages') \
                              .select('content') \
-                             .gte('created_at', today_start_str) \
-                             .lt('created_at', tomorrow_start_str) \
+                             .gte('created_at', start_time_str) \
+                             .lte('created_at', end_time_str) \
                              .order('created_at') \
                              .execute()
 
             if response.data:
                 messages_content = [msg['content'] for msg in response.data if msg.get('content')]
-                print(f"Retrieved {len(messages_content)} messages from today.")
+                print(f"Retrieved {len(messages_content)} messages from the last 24 hours (JST).")
             else:
-                print("No messages found for today.")
-                return f"No messages found for today ({today_start_str}).", 200
+                print("No messages found in the last 24 hours (JST).")
+                return f"No messages found between {start_time_str} and {end_time_str} (JST).", 200
 
         except Exception as db_err:
             print(f"Error querying Supabase 'messages': {db_err}")
@@ -80,7 +81,7 @@ def get_supabase_users(request: flask.Request):
 
         if not combined_text.strip():
              print("Combined message content is empty.")
-             return "No content found in today's messages.", 200
+             return "No content found in the retrieved messages.", 200
 
         # 5. Gemini API で要約
         try:
@@ -90,17 +91,17 @@ def get_supabase_users(request: flask.Request):
 
             print("Generating summary with Gemini...")
             model = genai.GenerativeModel('gemini-1.5-flash')
-            prompt = f"以下の複数のメッセージ内容を理解し、全体を簡潔に要約してください:\n\n---\n{combined_text}\n---\n\n要約:"
+            prompt = f"以下の複数のメッセージ内容（過去24時間分、日本時間基準）を理解し、全体を簡潔に要約してください:\n\n---\n{combined_text}\n---\n\n要約:"
 
             gemini_response = model.generate_content(prompt, stream=False)
             gemini_response.resolve() # エラーチェック
 
             if hasattr(gemini_response, 'text'):
                 summary = gemini_response.text
-                print("--- Gemini Summary ---")
+                print("--- Gemini Summary (JST Last 24h) ---")
                 print(summary)
-                print("----------------------")
-                return f"Successfully summarized {len(messages_content)} messages from today. Summary logged.", 200
+                print("-------------------------------------")
+                return f"Successfully summarized {len(messages_content)} messages from the last 24 hours (JST). Summary logged.", 200
             else:
                 print(f"Failed to generate summary. Feedback: {gemini_response.prompt_feedback}")
                 return f"要約を生成できませんでした。理由: {gemini_response.prompt_feedback}", 500
