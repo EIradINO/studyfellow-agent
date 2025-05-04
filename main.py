@@ -58,19 +58,29 @@ def get_supabase_users(request: flask.Request):
             # response = supabase.rpc('get_all_users', {}).execute()
 
             # 一旦、デフォルトの検索パスに 'auth' が含まれることを期待して試す
-            response = supabase.table('users', schema='auth').select("id, email, created_at", count='exact').execute()
+            # response = supabase.table('users', schema='auth').select("id, email, created_at", count='exact').execute()
+            # 方法Aを適用
+            # response = supabase.schema('auth').table('users').select("id, email, created_at", count='exact').execute()
+            # print(f"Supabase response received. Count: {response.count}")
+
+            # user_documents テーブルから全カラムを取得
+            response = supabase.table('user_documents').select("*", count='exact').execute()
             print(f"Supabase response received. Count: {response.count}")
 
         except Exception as db_err:
-             print(f"Error querying Supabase 'auth.users': {db_err}")
-             print("Make sure the 'auth' schema is accessible or try using RPC.")
+             # print(f"Error querying Supabase 'auth.users': {db_err}")
+             # print("Make sure the 'auth' schema is accessible or try using RPC.")
+             print(f"Error querying Supabase 'user_documents': {db_err}")
              raise # DBエラーを再発生させる
 
         user_count = response.count if response.count is not None else len(response.data)
-        print(f"Successfully retrieved {user_count} users from Supabase.")
+        # print(f"Successfully retrieved {user_count} users from Supabase.")
+        print(f"Successfully retrieved {user_count} user documents from Supabase.")
         # print(f"Users data sample: {response.data[:5]}") # データサンプルをログ出力（個人情報注意）
+        print(f"User documents data sample: {response.data[:5]}") # データサンプルをログ出力
 
-        return f"Successfully retrieved {user_count} users.", 200
+        # return f"Successfully retrieved {user_count} users.", 200
+        return f"Successfully retrieved {user_count} user documents.", 200
 
     except Exception as e:
         print(f"An error occurred in the function: {e}")
