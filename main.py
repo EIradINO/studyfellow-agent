@@ -16,23 +16,11 @@ secret_client = secretmanager.SecretManagerServiceClient()
 
 def get_secret(secret_id):
     """Secret Manager から指定されたシークレットの最新バージョンを取得する"""
-    # --- デバッグ用に追加 ---
-    current_project_id = os.environ.get("GCP_PROJECT")
-    print(f"Inside get_secret: GCP_PROJECT = {current_project_id}")
-    # ---------------------
-
     # 元のコード: グローバル変数 PROJECT_ID を使用
-    # if not PROJECT_ID:
-    #    raise ValueError("GCP_PROJECT environment variable not set.")
+    if not PROJECT_ID:
+       raise ValueError("GCP_PROJECT environment variable not set.")
 
-    # 修正案: 関数内で取得した値でチェック
-    if not current_project_id:
-         # 環境変数が本当に取得できていない場合、ここでログが出るはず
-         print("ERROR: GCP_PROJECT environment variable is indeed not set or empty.")
-         raise ValueError("GCP_PROJECT environment variable not set.")
-
-    # name = f"projects/{PROJECT_ID}/secrets/{secret_id}/versions/latest" # 元のコード
-    name = f"projects/{current_project_id}/secrets/{secret_id}/versions/latest" # 修正案
+    name = f"projects/{PROJECT_ID}/secrets/{secret_id}/versions/latest" # 元のコード
 
     try:
         response = secret_client.access_secret_version(request={"name": name})
