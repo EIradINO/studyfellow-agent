@@ -16,7 +16,7 @@ class Quiz(BaseModel):
 
 PROJECT_ID = "studyfellow"
 # 自動検出じゃ無いけどセキュリティ的に大丈夫なのか
-SECRET_KEY_ID = "supabase-service-role-key" 
+SECRET_KEY_ID = "supabase-service-role-key"
 SECRET_URL_ID = "supabase-url"
 GEMINI_API_KEY_SECRET_ID = "gemini-api-key" # 再度有効化
 
@@ -103,10 +103,11 @@ def make_daily_quizzes(conversation_json, report):
         print("--- make_daily_quizzes ---")
         response = client.models.generate_content(
             model='gemini-1.5-flash', # 他の関数と合わせて1.5-flashを使用
-            contents='会話履歴:\n' + json.dumps(conversation_json, ensure_ascii=False, indent=2) + '\n\n日報:\n' + report + '\n\nこの会話と日報をもとに、ユーザーの学力向上に役立つ問題を数問作成してください。問題はquestionとanswerの両方を含み、JSONリスト形式で返してください。',
+            contents='会話履歴:\n' + json.dumps(conversation_json, ensure_ascii=False, indent=2) + '\n\n日報:\n' + report + '\n\nこの会話と日報をもとに、ユーザーの学力向上に役立つ問題を数問作成してください。',
             config=types.GenerateContentConfig(
                 system_instruction='あなたは経験豊富な学習メンターです。学習者の理解度に合わせた効果的な問題を作成するのが得意です。',
-                response_mime_type='application/json'
+                response_mime_type='application/json',
+                response_schema=list[Quiz]
             )
         )
 
