@@ -36,7 +36,7 @@ def get_secret(secret_id):
         raise
 
 @functions_framework.http
-def get_supabase_users(request: flask.Request):
+def make_daily_report(request: flask.Request):
     """Supabaseからユーザーの理解度データを包括的に取得し、user_idを除いたJSONでログ出力"""
     try:
         # Supabaseクライアント初期化
