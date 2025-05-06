@@ -83,6 +83,47 @@ def get_supabase_users(request: flask.Request):
              print("Combined message content is empty.")
              return "No content found in the retrieved messages.", 200
 
+        # --- ここから理解度データの取得とログ出力 ---
+        try:
+            # user_comprehension全件取得
+            comprehension_res = supabase.table('user_comprehension').select('*').execute()
+            comprehensions = comprehension_res.data
+
+            # user_comprehension_sub全件取得
+            sub_res = supabase.table('user_comprehension_sub').select('*').execute()
+            subs = sub_res.data
+
+            # comprehension_idで紐付け
+            comprehension_dict = {}
+            for comp in comprehensions:
+                comp_id = comp['id']
+                comprehension_dict[comp_id] = {
+                    "subject": comp['subject'],
+                    "comprehension": comp['comprehension'],
+                    "explanation": comp['explanation'],
+                    "subs": []
+                }
+
+            for sub in subs:
+                comp_id = sub['comprehension_id']
+                if comp_id in comprehension_dict:
+                    comprehension_dict[comp_id]["subs"].append({
+                        "field": sub['field'],
+                        "comprehension": sub['comprehension'],
+                        "explanation": sub['explanation']
+                    })
+
+            # JSONリスト化
+            result = list(comprehension_dict.values())
+            import json
+            print("--- User Comprehension Summary JSON ---")
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            print("---------------------------------------")
+        except Exception as comprehension_err:
+            print(f"Error during comprehension summary: {comprehension_err}")
+            traceback.print_exc()
+        # --- ここまで理解度データの取得とログ出力 ---
+
         # 5. Gemini API で要約
         try:
             print("Configuring Gemini API...")
