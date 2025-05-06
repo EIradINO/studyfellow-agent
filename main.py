@@ -65,7 +65,7 @@ def make_daily_report(conversation_json):
                 system_instruction="You are a cat. Your name is Neko."),
             contents="Hello there"
 )
-        print(response)
+        print("response:" + response)
         return response
 
     except Exception as e:
@@ -185,7 +185,7 @@ def execute_daily_tasks(request: flask.Request):
         # ここから三つの関数に渡す
         comprehension_json = update_comprehension(conversation_json)
         report = make_daily_report(conversation_json)
-        quizzes = make_daily_quizzes(conversation_json, report)
+        # quizzes = make_daily_quizzes(conversation_json, report)
 
         return "タスクを実行し、各種jsonをログ出力しました。", 200
     except Exception as e:
