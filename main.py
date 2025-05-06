@@ -37,122 +37,48 @@ def get_secret(secret_id):
 
 @functions_framework.http
 def get_supabase_users(request: flask.Request):
-    """(変更) 過去24時間のSupabaseメッセージ(JST基準)を取得し、Geminiで要約してログ出力""" # Docstring 変更
-    print("Function triggered: get_supabase_users (Summarize last 24h messages in JST with Gemini)") # ログ変更
+    """Supabaseからユーザーの理解度データを包括的に取得し、user_idを除いたJSONでログ出力"""
     try:
-        # 1. Supabase クライアント初期化
+        # Supabaseクライアント初期化
         supabase_url = get_secret(SECRET_URL_ID)
         supabase_key = get_secret(SECRET_KEY_ID)
         supabase: Client = create_client(supabase_url, supabase_key)
         print("Supabase client initialized.")
 
-        # 2. 現在時刻から過去24時間の範囲を取得 (JST)
-        jst = timezone(timedelta(hours=9), 'JST') # 日本標準時 (UTC+9)
-        now_jst = datetime.now(jst)
-        twenty_four_hours_ago_jst = now_jst - timedelta(hours=24)
-        start_time_str = twenty_four_hours_ago_jst.isoformat()
-        end_time_str = now_jst.isoformat()
-        print(f"Querying messages created between {start_time_str} (JST, inclusive) and {end_time_str} (JST, inclusive)")
+        # user_comprehension全件取得
+        comprehension_res = supabase.table('user_comprehension').select('*').execute()
+        comprehensions = comprehension_res.data
 
-        # 3. Supabase で過去24時間(JST基準)のメッセージ内容を取得
-        messages_content = []
-        try:
-            response = supabase.table('messages') \
-                             .select('content') \
-                             .gte('created_at', start_time_str) \
-                             .lte('created_at', end_time_str) \
-                             .order('created_at') \
-                             .execute()
+        # user_comprehension_sub全件取得
+        sub_res = supabase.table('user_comprehension_sub').select('*').execute()
+        subs = sub_res.data
 
-            if response.data:
-                messages_content = [msg['content'] for msg in response.data if msg.get('content')]
-                print(f"Retrieved {len(messages_content)} messages from the last 24 hours (JST).")
-            else:
-                print("No messages found in the last 24 hours (JST).")
-                return f"No messages found between {start_time_str} and {end_time_str} (JST).", 200
+        # comprehension_idで紐付け
+        comprehension_dict = {}
+        for comp in comprehensions:
+            comp_id = comp['id']
+            comprehension_dict[comp_id] = {
+                "subject": comp['subject'],
+                "comprehension": comp['comprehension'],
+                "explanation": comp['explanation'],
+                "subs": []
+            }
 
-        except Exception as db_err:
-            print(f"Error querying Supabase 'messages': {db_err}")
-            traceback.print_exc()
-            raise
-
-        # 4. メッセージ内容を結合
-        combined_text = "\n\n---\n\n".join(messages_content)
-
-        if not combined_text.strip():
-             print("Combined message content is empty.")
-             return "No content found in the retrieved messages.", 200
-
-        # --- ここから理解度データの取得とログ出力 ---
-        try:
-            # user_comprehension全件取得
-            comprehension_res = supabase.table('user_comprehension').select('*').execute()
-            comprehensions = comprehension_res.data
-
-            # user_comprehension_sub全件取得
-            sub_res = supabase.table('user_comprehension_sub').select('*').execute()
-            subs = sub_res.data
-
-            # comprehension_idで紐付け
-            comprehension_dict = {}
-            for comp in comprehensions:
-                comp_id = comp['id']
-                comprehension_dict[comp_id] = {
-                    "subject": comp['subject'],
-                    "comprehension": comp['comprehension'],
-                    "explanation": comp['explanation'],
-                    "subs": []
-                }
-
-            for sub in subs:
-                comp_id = sub['comprehension_id']
-                if comp_id in comprehension_dict:
-                    comprehension_dict[comp_id]["subs"].append({
-                        "field": sub['field'],
-                        "comprehension": sub['comprehension'],
-                        "explanation": sub['explanation']
-                    })
-
-            # JSONリスト化
-            result = list(comprehension_dict.values())
-            import json
-            print("--- User Comprehension Summary JSON ---")
-            print(json.dumps(result, ensure_ascii=False, indent=2))
-            print("---------------------------------------")
-        except Exception as comprehension_err:
-            print(f"Error during comprehension summary: {comprehension_err}")
-            traceback.print_exc()
-        # --- ここまで理解度データの取得とログ出力 ---
-
-        # 5. Gemini API で要約
-        try:
-            print("Configuring Gemini API...")
-            api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
-            genai.configure(api_key=api_key)
-
-            print("Generating summary with Gemini...")
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            prompt = f"以下の複数のメッセージ内容（過去24時間分、日本時間基準）を理解し、全体を簡潔に要約してください:\n\n---\n{combined_text}\n---\n\n要約:"
-
-            gemini_response = model.generate_content(prompt, stream=False)
-            gemini_response.resolve() # エラーチェック
-
-            if hasattr(gemini_response, 'text'):
-                summary = gemini_response.text
-                print("--- Gemini Summary (JST Last 24h) ---")
-                print(summary)
-                print("-------------------------------------")
-                return f"Successfully summarized {len(messages_content)} messages from the last 24 hours (JST). Summary logged.", 200
-            else:
-                print(f"Failed to generate summary. Feedback: {gemini_response.prompt_feedback}")
-                return f"要約を生成できませんでした。理由: {gemini_response.prompt_feedback}", 500
-
-        except Exception as gemini_err:
-            print(f"Error during Gemini summarization: {gemini_err}")
-            traceback.print_exc()
-            return "Error during summarization process.", 500
-
+        for sub in subs:
+            comp_id = sub['comprehension_id']
+            if comp_id in comprehension_dict:
+                comprehension_dict[comp_id]["subs"].append({
+                    "field": sub['field'],
+                    "comprehension": sub['comprehension'],
+                    "explanation": sub['explanation']
+                })
+        result = list(comprehension_dict.values())
+        import json
+        print("--- User Comprehension Summary JSON ---")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print("---------------------------------------")
+        return "ユーザー理解度データをJSONでログ出力しました。", 200
     except Exception as e:
-        print(f"An error occurred in the function: {e}")
+        print(f"An error occurred: {e}")
         traceback.print_exc()
-        return "An internal error occurred.", 500
+        return "内部エラーが発生しました。", 500
