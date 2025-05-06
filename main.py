@@ -98,23 +98,67 @@ def make_daily_report(conversation_json):
         }
 
 def make_daily_quizzes(conversation_json, report):
-    """会話内容とレポートを元に問題を数問json形式で出力（今はprint）"""
-    response = client.models.generate_content(
-        model='gemini-2.0-flash',
-        contents='会話履歴:\n' + json.dumps(conversation_json, ensure_ascii=False, indent=2) + '\n\n日報:\n' + report,
-        config={
-            'system_instruction': 'あなたは経験豊富な学習メンターです。与えられた会話履歴と日報を元にユーザーの学力を上げるのに効果的と思われる問題を数問作成してください',
-            'response_mime_type': 'application/json',
-            'response_schema': list[Quiz],
-        },
-    )
+    """会話内容とレポートを元に問題を数問json形式で出力"""
+    try:
+        print("--- make_daily_quizzes ---")
+        response = client.models.generate_content(
+            model='gemini-1.5-flash', # 他の関数と合わせて1.5-flashを使用
+            contents='会話履歴:\n' + json.dumps(conversation_json, ensure_ascii=False, indent=2) + '\n\n日報:\n' + report + '\n\nこの会話と日報をもとに、ユーザーの学力向上に役立つ問題を数問作成してください。問題はquestionとanswerの両方を含み、JSONリスト形式で返してください。',
+            config=types.GenerateContentConfig(
+                system_instruction='あなたは経験豊富な学習メンターです。学習者の理解度に合わせた効果的な問題を作成するのが得意です。',
+                response_mime_type='application/json'
+            )
+        )
 
-# Use the response as a JSON string.
-    print(response.text)
+        print("Raw Gemini response text for quizzes: " + response.text)
+        
+        # response.textからJSONを解析する
+        try:
+            json_data = json.loads(response.text)
+            
+            # jsonがリストでない場合の処理
+            if not isinstance(json_data, list):
+                if isinstance(json_data, dict) and "questions" in json_data:
+                    # {"questions": [...]} 形式の場合
+                    json_data = json_data.get("questions", [])
+                else:
+                    print(f"Expected JSON array but got: {type(json_data)}")
+                    return []
+            
+            # 各項目をQuizモデルに変換
+            quizzes = []
+            for item in json_data:
+                try:
+                    # 必要なフィールドがあるか確認
+                    if "question" in item and "answer" in item:
+                        quiz = Quiz(question=item["question"], answer=item["answer"])
+                        quizzes.append(quiz)
+                    else:
+                        print(f"Skipping quiz item missing required fields: {item}")
+                except Exception as e:
+                    print(f"Error converting item to Quiz: {e}, item: {item}")
+            
+            if not quizzes:
+                print("No valid quizzes were found in the response")
+            else:
+                print(f"Successfully parsed {len(quizzes)} quizzes")
+            
+            return quizzes
+            
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse JSON from Gemini response: {e}")
+            print(f"Raw text: {response.text}")
+            return []
+        except Exception as e:
+            print(f"Unexpected error while processing quizzes: {e}")
+            traceback.print_exc()
+            return []
+            
+    except Exception as e:
+        print(f"Error in make_daily_quizzes: {e}")
+        traceback.print_exc()
+        return []
 
-    # Use instantiated objects.
-    my_quizzes: list[Quiz] = response.parsed
-    return my_quizzes
 @functions_framework.http
 def execute_daily_tasks(request: flask.Request):
     """その日の会話をjsonにまとめ、update_comprehension, make_daily_report, make_daily_quizzesに渡す"""
@@ -213,7 +257,22 @@ def execute_daily_tasks(request: flask.Request):
         report = make_daily_report(conversation_json)
         quizzes = make_daily_quizzes(conversation_json, report)
         print("--- 問題json ---")
-        print(json.dumps(quizzes, ensure_ascii=False, indent=2))
+        if quizzes: # quizzesがNoneや空でないことを確認
+            try:
+                quizzes_as_dicts = [quiz.model_dump() for quiz in quizzes] # Pydantic V2の場合
+                print(json.dumps(quizzes_as_dicts, ensure_ascii=False, indent=2))
+            except AttributeError: # Pydantic V1の場合など model_dump がない場合
+                try:
+                    quizzes_as_dicts = [quiz.dict() for quiz in quizzes] # Pydantic V1の場合
+                    print(json.dumps(quizzes_as_dicts, ensure_ascii=False, indent=2))
+                except Exception as e:
+                    print(f"Failed to serialize quizzes to JSON: {e}")
+                    print(f"Quizzes data: {quizzes}") # 生のデータをログに出力
+            except Exception as e:
+                 print(f"Failed to serialize quizzes with model_dump: {e}")
+                 print(f"Quizzes data: {quizzes}")
+        else:
+            print("生成された問題はありませんでした。")
         print("----------------")
 
         return "タスクを実行し、各種jsonをログ出力しました。", 200
