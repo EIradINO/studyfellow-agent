@@ -8,6 +8,11 @@ from google import genai
 from google.genai import types
 from datetime import date, timedelta, datetime, timezone # timezone を追加
 import json
+from pydantic import BaseModel
+
+class Quiz(BaseModel):
+  question: str
+  answer: str
 
 PROJECT_ID = "studyfellow"
 # 自動検出じゃ無いけどセキュリティ的に大丈夫なのか
@@ -16,6 +21,10 @@ SECRET_URL_ID = "supabase-url"
 GEMINI_API_KEY_SECRET_ID = "gemini-api-key" # 再度有効化
 
 secret_client = secretmanager.SecretManagerServiceClient()
+
+        # Gemini APIクライアントの初期化と設定
+api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
+client = genai.Client(api_key=api_key)
 
 def get_secret(secret_id):
     """Secret Manager から指定されたシークレットの最新バージョンを取得する"""
@@ -56,10 +65,6 @@ def make_daily_report(conversation_json):
     try:
         print(json.dumps(conversation_json, ensure_ascii=False, indent=2))
 
-        # Gemini APIクライアントの初期化と設定
-        api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
-        client = genai.Client(api_key=api_key)
-
         # conversation_jsonを文字列に変換
         conversation_text = json.dumps(conversation_json, ensure_ascii=False, indent=2)
 
@@ -71,9 +76,7 @@ def make_daily_report(conversation_json):
         )
         
         prompt_contents = (
-            f"以下の会話履歴に基づいて、本日の学習のまとめとアドバイスを作成してください。\n\n"
             f"会話履歴:\n```json\n{conversation_text}\n```\n\n"
-            "学習のまとめとアドバイス:"
         )
 
         response = client.models.generate_content(
@@ -97,16 +100,21 @@ def make_daily_report(conversation_json):
 
 def make_daily_quizzes(conversation_json, report):
     """会話内容とレポートを元に問題を数問json形式で出力（今はprint）"""
-    quizzes = [
-        {"question": "ダミー問題1", "choices": ["A", "B", "C"], "answer": "A"},
-        {"question": "ダミー問題2", "choices": ["1", "2", "3"], "answer": "2"}
-    ]
-    print("--- make_daily_quizzes ---")
-    import json
-    print(json.dumps({"quizzes": quizzes, "report": report}, ensure_ascii=False, indent=2))
-    print("--------------------------")
-    return quizzes
+    response = client.models.generate_content(
+    model='gemini-2.0-flash',
+    system_instruction='あなたは経験豊富な学習メンターです。与えられた会話履歴と日報を元にユーザーの学力を上げるのに効果的と思われる問題を数問作成してください',
+    contents='会話履歴:\n' + json.dumps(conversation_json, ensure_ascii=False, indent=2) + '\n\n日報:\n' + report,
+    config={
+        'response_mime_type': 'application/json',
+        'response_schema': list[Quiz],
+    },
+)
+# Use the response as a JSON string.
+    print(response.text)
 
+    # Use instantiated objects.
+    my_quizzes: list[Quiz] = response.parsed
+    return my_quizzes
 @functions_framework.http
 def execute_daily_tasks(request: flask.Request):
     """その日の会話をjsonにまとめ、update_comprehension, make_daily_report, make_daily_quizzesに渡す"""
@@ -203,7 +211,10 @@ def execute_daily_tasks(request: flask.Request):
         # ここから三つの関数に渡す
         comprehension_json = update_comprehension(conversation_json)
         report = make_daily_report(conversation_json)
-        # quizzes = make_daily_quizzes(conversation_json, report)
+        quizzes = make_daily_quizzes(conversation_json, report)
+        print("--- 問題json ---")
+        print(json.dumps(quizzes, ensure_ascii=False, indent=2))
+        print("----------------")
 
         return "タスクを実行し、各種jsonをログ出力しました。", 200
     except Exception as e:
