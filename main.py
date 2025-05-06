@@ -4,8 +4,10 @@ import os
 from google.cloud import secretmanager
 from supabase import create_client, Client
 import traceback
-import google.generativeai as genai # 再度インポート
+from google import genai
+from google.genai import types
 from datetime import date, timedelta, datetime, timezone # timezone を追加
+import json
 
 PROJECT_ID = "studyfellow"
 # 自動検出じゃ無いけどセキュリティ的に大丈夫なのか
@@ -50,16 +52,30 @@ def update_comprehension(conversation_json):
     return comprehension_json
 
 def make_daily_report(conversation_json):
-    """会話内容を元に詳細なレポートを作成（今はprint）"""
-    report = {
-        "summary": "本日の学習内容の詳細なレポート（ダミー）",
-        "details": conversation_json
-    }
-    print("--- make_daily_report ---")
-    import json
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-    print("-------------------------")
-    return report
+    """会話内容を元に、Gemini APIを使用して詳細な学習レポートを作成"""
+    try:
+        print(json.dumps(conversation_json, ensure_ascii=False, indent=2))
+
+        # Gemini APIクライアントの初期化と設定
+        api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            config=types.GenerateContentConfig(
+                system_instruction="You are a cat. Your name is Neko."),
+            contents="Hello there"
+)
+        print(response)
+        return response
+
+    except Exception as e:
+        print(f"Error in make_daily_report: {e}")
+        traceback.print_exc()
+        return {
+            "summary": "レポート生成中にエラーが発生しました。",
+            "error_details": str(e),
+            "source_conversations": conversation_json
+        }
 
 def make_daily_quizzes(conversation_json, report):
     """会話内容とレポートを元に問題を数問json形式で出力（今はprint）"""
@@ -77,9 +93,6 @@ def make_daily_quizzes(conversation_json, report):
 def execute_daily_tasks(request: flask.Request):
     """その日の会話をjsonにまとめ、update_comprehension, make_daily_report, make_daily_quizzesに渡す"""
     try:
-        from datetime import datetime, timedelta, timezone
-        import json
-        # Supabaseクライアント初期化
         supabase_url = get_secret(SECRET_URL_ID)
         supabase_key = get_secret(SECRET_KEY_ID)
         supabase: Client = create_client(supabase_url, supabase_key)
@@ -91,6 +104,7 @@ def execute_daily_tasks(request: flask.Request):
         twenty_four_hours_ago_jst = now_jst - timedelta(hours=24)
         start_time_str = twenty_four_hours_ago_jst.isoformat()
         end_time_str = now_jst.isoformat()
+        print(f"直近24時間の取得範囲: {start_time_str} 〜 {end_time_str} (JST)")
 
         # messages取得
         messages_res = supabase.table('messages') \
