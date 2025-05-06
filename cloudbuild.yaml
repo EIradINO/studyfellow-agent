@@ -9,7 +9,7 @@ steps:
   - '--region=us-central1'
   - '--runtime=python311'
   - '--source=.'
-  - '--entry-point=get_supabase_users'
+  - '--entry-point=make_daily_report'
   - '--trigger-http'
   - '--no-allow-unauthenticated'
   - '--service-account=studyfellow@appspot.gserviceaccount.com'
