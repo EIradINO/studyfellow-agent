@@ -35,9 +35,47 @@ def get_secret(secret_id):
         traceback.print_exc()
         raise
 
+def update_comprehension(conversation_json):
+    """会話jsonに加えcomprehensionのjsonも作成し保持（今はprint）"""
+    # ここでcomprehensionのjsonも作成
+    comprehension_json = {"dummy_comprehension": True}  # 仮のデータ
+    print("--- update_comprehension ---")
+    print("conversation_json:")
+    import json
+    print(json.dumps(conversation_json, ensure_ascii=False, indent=2))
+    print("comprehension_json:")
+    print(json.dumps(comprehension_json, ensure_ascii=False, indent=2))
+    print("---------------------------")
+    # 必要ならreturn comprehension_json
+    return comprehension_json
+
+def make_daily_report(conversation_json):
+    """会話内容を元に詳細なレポートを作成（今はprint）"""
+    report = {
+        "summary": "本日の学習内容の詳細なレポート（ダミー）",
+        "details": conversation_json
+    }
+    print("--- make_daily_report ---")
+    import json
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print("-------------------------")
+    return report
+
+def make_daily_quizzes(conversation_json, report):
+    """会話内容とレポートを元に問題を数問json形式で出力（今はprint）"""
+    quizzes = [
+        {"question": "ダミー問題1", "choices": ["A", "B", "C"], "answer": "A"},
+        {"question": "ダミー問題2", "choices": ["1", "2", "3"], "answer": "2"}
+    ]
+    print("--- make_daily_quizzes ---")
+    import json
+    print(json.dumps({"quizzes": quizzes, "report": report}, ensure_ascii=False, indent=2))
+    print("--------------------------")
+    return quizzes
+
 @functions_framework.http
-def make_daily_report(request: flask.Request):
-    """Supabaseからユーザーの理解度データと、直近24時間の会話履歴を取得し、user_idを除いたJSONでログ出力"""
+def execute_daily_tasks(request: flask.Request):
+    """その日の会話をjsonにまとめ、update_comprehension, make_daily_report, make_daily_quizzesに渡す"""
     try:
         from datetime import datetime, timedelta, timezone
         import json
@@ -46,33 +84,6 @@ def make_daily_report(request: flask.Request):
         supabase_key = get_secret(SECRET_KEY_ID)
         supabase: Client = create_client(supabase_url, supabase_key)
         print("Supabase client initialized.")
-
-        # --- 理解度データの取得とログ出力 ---
-        comprehension_res = supabase.table('user_comprehension').select('*').execute()
-        comprehensions = comprehension_res.data
-        sub_res = supabase.table('user_comprehension_sub').select('*').execute()
-        subs = sub_res.data
-        comprehension_dict = {}
-        for comp in comprehensions:
-            comp_id = comp['id']
-            comprehension_dict[comp_id] = {
-                "subject": comp['subject'],
-                "comprehension": comp['comprehension'],
-                "explanation": comp['explanation'],
-                "subs": []
-            }
-        for sub in subs:
-            comp_id = sub['comprehension_id']
-            if comp_id in comprehension_dict:
-                comprehension_dict[comp_id]["subs"].append({
-                    "field": sub['field'],
-                    "comprehension": sub['comprehension'],
-                    "explanation": sub['explanation']
-                })
-        result = list(comprehension_dict.values())
-        print("--- User Comprehension Summary JSON ---")
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        print("---------------------------------------")
 
         # --- 直近24時間の会話履歴の取得と再現 ---
         jst = timezone(timedelta(hours=9), 'JST')
@@ -157,7 +168,12 @@ def make_daily_report(request: flask.Request):
         print(json.dumps(conversation_json, ensure_ascii=False, indent=2))
         print("----------------------------------")
 
-        return "ユーザー理解度データと会話履歴をJSONでログ出力しました。", 200
+        # ここから三つの関数に渡す
+        comprehension_json = update_comprehension(conversation_json)
+        report = make_daily_report(conversation_json)
+        quizzes = make_daily_quizzes(conversation_json, report)
+
+        return "タスクを実行し、各種jsonをログ出力しました。", 200
     except Exception as e:
         print(f"An error occurred: {e}")
         traceback.print_exc()
