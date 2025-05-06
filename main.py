@@ -101,7 +101,7 @@ def make_daily_quizzes(conversation_json, report):
     """会話内容とレポートを元に問題を数問json形式で出力（今はprint）"""
     response = client.models.generate_content(
         model='gemini-2.0-flash',
-        config=types.GenerateConfig(
+        config=types.GenerateContentConfig(
             system_instruction='あなたは経験豊富な学習メンターです。与えられた会話履歴と日報を元にユーザーの学力を上げるのに効果的と思われる問題を数問作成してください',
         ),
         contents='会話履歴:\n' + json.dumps(conversation_json, ensure_ascii=False, indent=2) + '\n\n日報:\n' + report,
