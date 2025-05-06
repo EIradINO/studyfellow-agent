@@ -22,10 +22,6 @@ GEMINI_API_KEY_SECRET_ID = "gemini-api-key" # 再度有効化
 
 secret_client = secretmanager.SecretManagerServiceClient()
 
-        # Gemini APIクライアントの初期化と設定
-api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
-client = genai.Client(api_key=api_key)
-
 def get_secret(secret_id):
     """Secret Manager から指定されたシークレットの最新バージョンを取得する"""
     # 環境変数 GCP_PROJECT を優先し、なければハードコードされた PROJECT_ID を使う
@@ -45,6 +41,9 @@ def get_secret(secret_id):
         print(f"Error accessing secret {secret_id}: {e}")
         traceback.print_exc()
         raise
+
+api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
+client = genai.Client(api_key=api_key)
 
 def update_comprehension(conversation_json):
     """会話jsonに加えcomprehensionのjsonも作成し保持（今はprint）"""
