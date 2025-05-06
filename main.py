@@ -59,12 +59,30 @@ def make_daily_report(conversation_json):
         # Gemini APIクライアントの初期化と設定
         api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
         client = genai.Client(api_key=api_key)
+
+        # conversation_jsonを文字列に変換
+        conversation_text = json.dumps(conversation_json, ensure_ascii=False, indent=2)
+
+        system_instruction = (
+            "あなたは経験豊富な学習メンターです。"
+            "提供された会話履歴を分析し、ユーザーが今日何を学び、どのような点に苦労し、"
+            "どのような進捗があったかを具体的に指摘してください。"
+            "そして、今後の学習に役立つ具体的なアドバイスを、励ますように親しみやすい言葉で提供してください。"
+        )
+        
+        prompt_contents = (
+            f"以下の会話履歴に基づいて、本日の学習のまとめとアドバイスを作成してください。\n\n"
+            f"会話履歴:\n```json\n{conversation_text}\n```\n\n"
+            "学習のまとめとアドバイス:"
+        )
+
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-1.5-flash", # モデル名を gemini-1.5-flash に変更
             config=types.GenerateContentConfig(
-                system_instruction="You are a cat. Your name is Neko."),
-            contents="Hello there"
-)
+                system_instruction=system_instruction
+            ),
+            contents=prompt_contents
+        )
         print("response:" + response.text)
         return response.text
 
