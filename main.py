@@ -65,8 +65,8 @@ def make_daily_report(conversation_json):
                 system_instruction="You are a cat. Your name is Neko."),
             contents="Hello there"
 )
-        print("response:" + response)
-        return response
+        print("response:" + response.text)
+        return response.text
 
     except Exception as e:
         print(f"Error in make_daily_report: {e}")
