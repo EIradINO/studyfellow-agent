@@ -1,173 +1,26 @@
 import functions_framework
 import flask
-import os
-from google.cloud import secretmanager
-from supabase import create_client, Client
+from supabase import create_client, Client # Client は execute_daily_tasks で型ヒント用
 import traceback
-from google import genai
-from google.genai import types
-from datetime import date, timedelta, datetime, timezone # timezone を追加
+from datetime import timedelta, datetime, timezone
 import json
-from pydantic import BaseModel
 
-class Quiz(BaseModel):
-  question: str
-  answer: str
-
-PROJECT_ID = "studyfellow"
-# 自動検出じゃ無いけどセキュリティ的に大丈夫なのか
-SECRET_KEY_ID = "supabase-service-role-key"
-SECRET_URL_ID = "supabase-url"
-GEMINI_API_KEY_SECRET_ID = "gemini-api-key" # 再度有効化
-
-secret_client = secretmanager.SecretManagerServiceClient()
-
-def get_secret(secret_id):
-    """Secret Manager から指定されたシークレットの最新バージョンを取得する"""
-    # 環境変数 GCP_PROJECT を優先し、なければハードコードされた PROJECT_ID を使う
-    current_project_id = os.environ.get("GCP_PROJECT", PROJECT_ID)
-    if not current_project_id:
-         # 環境変数もハードコード値もなければエラー
-         print("ERROR: GCP_PROJECT cannot be determined.")
-         raise ValueError("GCP_PROJECT cannot be determined.")
-
-    name = f"projects/{current_project_id}/secrets/{secret_id}/versions/latest"
-
-    try:
-        response = secret_client.access_secret_version(request={"name": name})
-        print(f"Successfully accessed secret: {secret_id}")
-        return response.payload.data.decode("UTF-8")
-    except Exception as e:
-        print(f"Error accessing secret {secret_id}: {e}")
-        traceback.print_exc()
-        raise
-
-api_key = get_secret(GEMINI_API_KEY_SECRET_ID)
-client = genai.Client(api_key=api_key)
-
-def update_comprehension(conversation_json):
-    """会話jsonに加えcomprehensionのjsonも作成し保持（今はprint）"""
-    # ここでcomprehensionのjsonも作成
-    comprehension_json = {"dummy_comprehension": True}  # 仮のデータ
-    print("--- update_comprehension ---")
-    print("conversation_json:")
-    import json
-    print(json.dumps(conversation_json, ensure_ascii=False, indent=2))
-    print("comprehension_json:")
-    print(json.dumps(comprehension_json, ensure_ascii=False, indent=2))
-    print("---------------------------")
-    # 必要ならreturn comprehension_json
-    return comprehension_json
-
-def make_daily_report(conversation_json):
-    """会話内容を元に、Gemini APIを使用して詳細な学習レポートを作成"""
-    try:
-        print(json.dumps(conversation_json, ensure_ascii=False, indent=2))
-
-        # conversation_jsonを文字列に変換
-        conversation_text = json.dumps(conversation_json, ensure_ascii=False, indent=2)
-
-        system_instruction = (
-            "あなたは経験豊富な学習メンターです。"
-            "提供された会話履歴を分析し、ユーザーが今日何を学び、どのような点に苦労し、"
-            "どのような進捗があったかを具体的に指摘してください。"
-            "そして、今後の学習に役立つ具体的なアドバイスを、励ますように親しみやすい言葉で提供してください。"
-        )
-        
-        prompt_contents = (
-            f"会話履歴:\n```json\n{conversation_text}\n```\n\n"
-        )
-
-        response = client.models.generate_content(
-            model="gemini-1.5-flash", # モデル名を gemini-1.5-flash に変更
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction
-            ),
-            contents=prompt_contents
-        )
-        print("response:" + response.text)
-        return response.text
-
-    except Exception as e:
-        print(f"Error in make_daily_report: {e}")
-        traceback.print_exc()
-        return {
-            "summary": "レポート生成中にエラーが発生しました。",
-            "error_details": str(e),
-            "source_conversations": conversation_json
-        }
-
-def make_daily_quizzes(conversation_json, report):
-    """会話内容とレポートを元に問題を数問json形式で出力"""
-    try:
-        print("--- make_daily_quizzes ---")
-        response = client.models.generate_content(
-            model='gemini-1.5-flash', # 他の関数と合わせて1.5-flashを使用
-            contents='会話履歴:\n' + json.dumps(conversation_json, ensure_ascii=False, indent=2) + '\n\n日報:\n' + report + '\n\nこの会話と日報をもとに、ユーザーの学力向上に役立つ問題を数問作成してください。',
-            config=types.GenerateContentConfig(
-                system_instruction='あなたは経験豊富な学習メンターです。学習者の理解度に合わせた効果的な問題を作成するのが得意です。',
-                response_mime_type='application/json',
-                response_schema=list[Quiz]
-            )
-        )
-
-        print("Raw Gemini response text for quizzes: " + response.text)
-        
-        # response.textからJSONを解析する
-        try:
-            json_data = json.loads(response.text)
-            
-            # jsonがリストでない場合の処理
-            if not isinstance(json_data, list):
-                if isinstance(json_data, dict) and "questions" in json_data:
-                    # {"questions": [...]} 形式の場合
-                    json_data = json_data.get("questions", [])
-                else:
-                    print(f"Expected JSON array but got: {type(json_data)}")
-                    return []
-            
-            # 各項目をQuizモデルに変換
-            quizzes = []
-            for item in json_data:
-                try:
-                    # 必要なフィールドがあるか確認
-                    if "question" in item and "answer" in item:
-                        quiz = Quiz(question=item["question"], answer=item["answer"])
-                        quizzes.append(quiz)
-                    else:
-                        print(f"Skipping quiz item missing required fields: {item}")
-                except Exception as e:
-                    print(f"Error converting item to Quiz: {e}, item: {item}")
-            
-            if not quizzes:
-                print("No valid quizzes were found in the response")
-            else:
-                print(f"Successfully parsed {len(quizzes)} quizzes")
-            
-            return quizzes
-            
-        except json.JSONDecodeError as e:
-            print(f"Failed to parse JSON from Gemini response: {e}")
-            print(f"Raw text: {response.text}")
-            return []
-        except Exception as e:
-            print(f"Unexpected error while processing quizzes: {e}")
-            traceback.print_exc()
-            return []
-            
-    except Exception as e:
-        print(f"Error in make_daily_quizzes: {e}")
-        traceback.print_exc()
-        return []
+# ローカルモジュールのインポート
+from utils import get_secret # Gemini client は各サービスファイルがutilsから直接インポート・使用
+from config import SECRET_URL_ID, SECRET_KEY_ID # Supabase接続情報
+from comprehension_service import update_comprehension
+from report_service import make_daily_report
+from quiz_service import make_daily_quizzes
+# models.Quiz は quiz_service.py で使われるため、main.pyでは直接不要
 
 @functions_framework.http
 def execute_daily_tasks(request: flask.Request):
-    """その日の会話をjsonにまとめ、update_comprehension, make_daily_report, make_daily_quizzesに渡す"""
+    """その日の会話をjsonにまとめ、各サービス関数に渡す"""
     try:
         supabase_url = get_secret(SECRET_URL_ID)
         supabase_key = get_secret(SECRET_KEY_ID)
         supabase: Client = create_client(supabase_url, supabase_key)
-        print("Supabase client initialized.")
+        print("Supabase client initialized in main.")
 
         # --- 直近24時間の会話履歴の取得と再現 ---
         jst = timezone(timedelta(hours=9), 'JST')
@@ -231,13 +84,11 @@ def execute_daily_tasks(request: flask.Request):
         posts_conversations = []
         for post in posts:
             conv = []
-            # ユーザー投稿
             conv.append({
                 "role": "user",
                 "comment": post['comment'],
                 "created_at": post['created_at']
             })
-            # AI返答
             ai_msgs = post_ai_by_post.get(post['id'], [])
             conv.extend(sorted(ai_msgs, key=lambda x: x['created_at']))
             posts_conversations.append({
@@ -253,31 +104,44 @@ def execute_daily_tasks(request: flask.Request):
         print(json.dumps(conversation_json, ensure_ascii=False, indent=2))
         print("----------------------------------")
 
-        # ここから三つの関数に渡す
-        comprehension_json = update_comprehension(conversation_json)
-        report = make_daily_report(conversation_json)
-        quizzes = make_daily_quizzes(conversation_json, report)
+        # 各サービス関数呼び出し
+        comprehension_update_suggestion = update_comprehension(conversation_json)
+        daily_report_text = make_daily_report(conversation_json) # conversation_json を渡す
+        daily_quizzes = make_daily_quizzes(conversation_json, daily_report_text) # report も渡す
+
+        print("--- 理解度更新提案 JSON ---")
+        print(json.dumps(comprehension_update_suggestion, ensure_ascii=False, indent=2))
+        print("-------------------------")
+
+        print("--- デイリーレポート ---")
+        # daily_report_text が辞書の場合（エラー時など）も考慮
+        if isinstance(daily_report_text, dict) and "summary" in daily_report_text:
+            print(daily_report_text["summary"])
+        else:
+            print(daily_report_text) 
+        print("--------------------")
+
         print("--- 問題json ---")
-        if quizzes: # quizzesがNoneや空でないことを確認
+        if daily_quizzes: # daily_quizzes がNoneや空でないことを確認
             try:
-                quizzes_as_dicts = [quiz.model_dump() for quiz in quizzes] # Pydantic V2の場合
+                quizzes_as_dicts = [quiz.model_dump() for quiz in daily_quizzes] # Pydantic V2の場合
                 print(json.dumps(quizzes_as_dicts, ensure_ascii=False, indent=2))
             except AttributeError: # Pydantic V1の場合など model_dump がない場合
                 try:
-                    quizzes_as_dicts = [quiz.dict() for quiz in quizzes] # Pydantic V1の場合
+                    quizzes_as_dicts = [quiz.dict() for quiz in daily_quizzes] # Pydantic V1の場合
                     print(json.dumps(quizzes_as_dicts, ensure_ascii=False, indent=2))
-                except Exception as e:
-                    print(f"Failed to serialize quizzes to JSON: {e}")
-                    print(f"Quizzes data: {quizzes}") # 生のデータをログに出力
-            except Exception as e:
-                 print(f"Failed to serialize quizzes with model_dump: {e}")
-                 print(f"Quizzes data: {quizzes}")
+                except Exception as e_dict:
+                    print(f"Failed to serialize quizzes to JSON using .dict(): {e_dict}")
+                    print(f"Quizzes data: {daily_quizzes}")
+            except Exception as e_model_dump:
+                 print(f"Failed to serialize quizzes with model_dump: {e_model_dump}")
+                 print(f"Quizzes data: {daily_quizzes}")
         else:
             print("生成された問題はありませんでした。")
         print("----------------")
 
         return "タスクを実行し、各種jsonをログ出力しました。", 200
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred in execute_daily_tasks: {e}")
         traceback.print_exc()
         return "内部エラーが発生しました。", 500
