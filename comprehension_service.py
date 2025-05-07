@@ -4,7 +4,7 @@ import traceback
 from utils import get_secret, client # client は utils で初期化されたものを使用
 import config
 from google.genai import types
-
+from models import ComprehensionUpdateSuggestion
 def update_comprehension(conversation_json):
     """
     現在の学力データと今日の会話履歴をGeminiに入力し、
@@ -78,9 +78,10 @@ def update_comprehension(conversation_json):
         response = client.models.generate_content(
             model="gemini-1.5-flash",
             contents=prompt,
-            config=types.GenerationConfig( 
+            config=types.GenerateContentConfig( 
                 system_instruction=system_instruction, 
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                response_schema=ComprehensionUpdateSuggestion
             )
         )
         
