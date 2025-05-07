@@ -66,12 +66,12 @@ def update_comprehension(conversation_json):
             "更新提案を以下のJSON形式で出力してください:\n"
             "{\n"
             '  "levelUpField": ["理解度が向上したか内容が更新された分野名1", "分野名2"],\n'
-            '  "updateExplanation": {\n'
-            '    "説明を更新すべき分野名1": "この分野の新しい説明文",\n'
-            '    "説明を更新すべき分野名2": "この分野の新しい説明文"\n'
-            "  }\n"
+            '  "updateExplanation": [\n'
+            '    {"field": "説明を更新すべき分野名1", "explanation": "この分野の新しい説明文"},\n'
+            '    {"field": "説明を更新すべき分野名2", "explanation": "この分野の新しい説明文"}\n'
+            '  ]\n'
             "}\n"
-            "もし該当する更新がない場合は、levelUpFieldに空のリスト[]を、updateExplanationに空のオブジェクト{}を返してください。"
+            "もし該当する更新がない場合は、levelUpFieldに空のリスト[]を、updateExplanationに空のリスト[]を返してください。"
         )
 
         print("\nCalling Gemini API for comprehension update suggestions...")
@@ -97,9 +97,9 @@ def update_comprehension(conversation_json):
         except json.JSONDecodeError as e:
             print(f"Failed to parse JSON from Gemini response for comprehension update: {e}")
             print(f"Raw text was: {response.text}")
-            return {"levelUpField": [], "updateExplanation": {}}
+            return {"levelUpField": [], "updateExplanation": []}
 
     except Exception as e:
         print(f"Error in update_comprehension: {e}")
         traceback.print_exc()
-        return {"levelUpField": [], "updateExplanation": {}} 
+        return {"levelUpField": [], "updateExplanation": []} 
