@@ -3,6 +3,7 @@ from supabase import create_client, Client
 import traceback
 from utils import get_secret, client # client は utils で初期化されたものを使用
 import config
+from google.genai import types
 
 def update_comprehension(conversation_json):
     """
@@ -77,7 +78,7 @@ def update_comprehension(conversation_json):
         response = client.models.generate_content(
             model="gemini-1.5-flash",
             contents=prompt,
-            generation_config=genai.types.GenerationConfig( 
+            config=types.GenerationConfig( 
                 system_instruction=system_instruction, 
                 response_mime_type="application/json"
             )

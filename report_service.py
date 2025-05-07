@@ -27,7 +27,7 @@ def make_daily_report(conversation_json):
         response = client.models.generate_content(
             model="gemini-1.5-flash",
             contents=prompt_contents,
-            generation_config=types.GenerateContentConfig(
+            config=types.GenerateContentConfig(
                 system_instruction=system_instruction
                 # response_mime_type はテキストなので不要
             )

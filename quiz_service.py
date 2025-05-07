@@ -11,9 +11,10 @@ def make_daily_quizzes(conversation_json, report):
         response = client.models.generate_content(
             model='gemini-1.5-flash',
             contents='会話履歴:\n' + json.dumps(conversation_json, ensure_ascii=False, indent=2) + '\n\n日報:\n' + str(report) + '\n\nこの会話と日報をもとに、ユーザーの学力向上に役立つ問題を数問作成してください。問題はquestionとanswerの両方を含み、JSONリスト形式で返してください。',
-            generation_config=types.GenerateContentConfig(
+            config=types.GenerateContentConfig(
                 system_instruction='あなたは経験豊富な学習メンターです。学習者の理解度に合わせた効果的な問題を作成するのが得意です。',
-                response_mime_type='application/json'
+                response_mime_type='application/json',
+                response_schema=list[Quiz]
             )
         )
 
