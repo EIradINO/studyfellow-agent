@@ -22,7 +22,7 @@ def execute_daily_tasks(request: flask.Request):
         print("Supabase client initialized in main.")
 
         # --- 全ユーザーのIDを取得 ---
-        users_res = supabase.table('users').select('id').execute()
+        users_res = supabase.table('users').select('user_id').execute()
         if not users_res.data:
             print("No users found.")
             return "No users found.", 200
