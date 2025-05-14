@@ -8,10 +8,9 @@ import json
 # ローカルモジュールのインポート
 from utils import get_secret # Gemini client は各サービスファイルがutilsから直接インポート・使用
 from config import SECRET_URL_ID, SECRET_KEY_ID # Supabase接続情報
-from comprehension_service import update_comprehension
 from report_service import make_daily_report
 from quiz_service import make_daily_quizzes
-# models.Quiz は quiz_service.py で使われるため、main.pyでは直接不要
+from learning_insight_service import generate_learning_insights
 
 @functions_framework.http
 def execute_daily_tasks(request: flask.Request):
@@ -105,13 +104,9 @@ def execute_daily_tasks(request: flask.Request):
         print("----------------------------------")
 
         # 各サービス関数呼び出し
-        comprehension_update_suggestion = update_comprehension(conversation_json)
         daily_report_text = make_daily_report(conversation_json) # conversation_json を渡す
         daily_quizzes = make_daily_quizzes(conversation_json, daily_report_text) # report も渡す
-
-        print("--- 理解度更新提案 JSON ---")
-        print(json.dumps(comprehension_update_suggestion, ensure_ascii=False, indent=2))
-        print("-------------------------")
+        insights = generate_learning_insights(conversation_json)
 
         print("--- デイリーレポート ---")
         # daily_report_text が辞書の場合（エラー時など）も考慮
@@ -119,6 +114,10 @@ def execute_daily_tasks(request: flask.Request):
             print(daily_report_text["summary"])
         else:
             print(daily_report_text) 
+        print("--------------------")
+
+        print("--- 発展的な学習アドバイス ---")
+        print(insights)
         print("--------------------")
 
         print("--- 問題json ---")
@@ -145,3 +144,5 @@ def execute_daily_tasks(request: flask.Request):
         print(f"An error occurred in execute_daily_tasks: {e}")
         traceback.print_exc()
         return "内部エラーが発生しました。", 500
+
+# supabase処理と、instant_report削除
