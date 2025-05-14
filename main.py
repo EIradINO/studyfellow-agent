@@ -11,6 +11,7 @@ from config import SECRET_URL_ID, SECRET_KEY_ID # Supabase接続情報
 from report_service import make_daily_report
 from quiz_service import make_daily_quizzes
 from learning_insight_service import generate_learning_insights
+from generate_advanced_knowledge import generate_advanced_knowledge # 新しいサービスをインポート
 
 @functions_framework.http
 def execute_daily_tasks(request: flask.Request):
@@ -107,6 +108,7 @@ def execute_daily_tasks(request: flask.Request):
         daily_report_text = make_daily_report(conversation_json) # conversation_json を渡す
         daily_quizzes = make_daily_quizzes(conversation_json, daily_report_text) # report も渡す
         insights = generate_learning_insights(conversation_json)
+        advanced_knowledge = generate_advanced_knowledge(conversation_json) # 新しい関数を呼び出し
 
         print("--- デイリーレポート ---")
         # daily_report_text が辞書の場合（エラー時など）も考慮
@@ -119,6 +121,12 @@ def execute_daily_tasks(request: flask.Request):
         print("--- 発展的な学習アドバイス ---")
         print(insights)
         print("--------------------")
+
+        # advanced_knowledge のログ出力は generate_advanced_knowledge 関数内で行われるため、ここでは不要
+        # 必要であればここで別途処理を追加できます。
+        print("--- 発展的知識 ---")
+        print(advanced_knowledge)
+        print("----------------")
 
         print("--- 問題json ---")
         if daily_quizzes: # daily_quizzes がNoneや空でないことを確認
