@@ -27,7 +27,7 @@ def execute_daily_tasks(request: flask.Request):
             print("No users found.")
             return "No users found.", 200
         
-        user_ids = [user['id'] for user in users_res.data]
+        user_ids = [user['user_id'] for user in users_res.data]
         print(f"Found {len(user_ids)} users: {user_ids}")
 
         all_user_task_results = []
