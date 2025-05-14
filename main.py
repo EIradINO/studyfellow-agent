@@ -208,6 +208,7 @@ def execute_daily_tasks(request: flask.Request):
                 try:
                     report_to_insert = {
                         "user_id": user_id,
+                        "title": folder_title, # user_task_folders作成時のタイトルを流用
                         "basic_report": basic_report_str,
                         "advanced_report": advanced_report_str,
                         "task_folder_id": current_task_folder_id 
